@@ -11,13 +11,22 @@ In the [first post](/blog/2014/07/28/explorations-in-analyzing-web-event-data-in
 
 Let's start with some easy analysis while we get used to using Cypher. Some of these simpler ideas could be easily queried directly in SQL; we're just interested in checking out how Cypher works for now. Some of the later examples will cover queries that just aren't feasible in SQL.
 
-<!--more-->
-
-### How many visits were there to our home page?
-
-We start by finding all of views that lead to the homepage. Remember that the structure we're using has each page view as a unique event node, but that each user and each page will be associated with multiple page views. The diagram below shows two different users visiting the home page. One user has visited twice, so has two 'View' nodes, and the other user has only visited once, so we only see one 'View' node. Of course, both users may have visited other pages; we're only looking at their views of the home page here.
+Remember that the structure we're using has each page view as a unique event node, but that each user and each page will be associated with multiple page views. The diagram below shows two different users visiting the home page. One user has visited twice, so has two 'View' nodes, and the other user has only visited once, so we only see one 'View' node. Of course, both users may have visited other pages; we're only looking at their views of the home page here.
 
 <p style="text-align:center"><a href="/assets/img/blog/2014/07/Neo4j-structure.png"><img src="/assets/img/blog/2014/07/Neo4j-structure.png"></a></p>
+
+1. [How many visits were there to our home page?](/blog/2014/08/31/analyzing-page-view-data-in-neo4j/#how-many-visits-were-there-to-our-homepage)
+2. [What page were users on before arriving at the about page?](/blog/2014/08/31/analyzing-page-view-data-in-neo4j/#what-page-were-users-on-before-arriving-at-the-about-page)
+3. [What journeys do users take from the homepage?](/blog/2014/08/31/analyzing-page-view-data-in-neo4j/#what-journeys-do-users-take-from-the-homepage)
+4. [What are the most common journeys that end on a particular page?](#what-are-the-most-common-journeys-that-end-on-a-particular-page)
+5. [How long does it take users to get from one page to another](/blog/2014/08/31/analyzing-page-view-data-in-neo4j/#how-long-does-it-take-users-to-get-from-one-page-to-another)
+6. [Common triplets](/blog/2014/08/31/analyzing-page-view-data-in-neo4j/#common-triplets)
+
+<!--more-->
+
+<h2 id="how-many-visits-were-there-to-our-homepage">1. How many visits were there to our home page?</h3>
+
+We start by finding all of views that lead to the homepage. 
 
 In the code below, I've used double dashes as shorthand for an edge so that I don't need to specify the relationship type. I can do that here because we know that all of the edges that go between views and pages are *object* edges.
 
@@ -57,7 +66,7 @@ So, of the 31,491 home page views, 8,154 were bounces.
 
 Now let's consider a more interesting question, albeit one that could be reasonably answered in SQL.
 
-## What page were users on before arriving at the 'About' page?
+<h2 id="what-page-were-users-on-before-arriving-at-the-about-page">What page were users on before arriving at the 'About' page?</h2>
 
 (We're interested in our 'About' page because this has our contact details). Now we're specifying the destination, and we want to find the previous page the user was on. That means it's just a case of following an *prev* edge from the events connected to the 'About' page node.
 
@@ -211,7 +220,7 @@ You can see that one of these paths consists of a lot of refreshes on one page, 
 
 It's worth considering at this point how long it would take to perform an equivalent search in SQL. For each session by each user, we'd have to find all of the page view events, sort them, find the times they've visited the 'About' page, and then count five steps back, checking that the intervening pages don't include the 'About' page.
 
-## What journeys do users take from the home page?
+<h2 id="what-journeys-do-users-take-from-the-homepage">3. What journeys do users take from the home page?</h2>
 
 We might be interested in where users go after arriving at the homepage. Now we'll need to match a pattern of, say, 3 steps from the homepage. We'll use the <tt>EXTRACT</tt> command to return just the URL attached to the events in the path, rather than the nodes themselves. That's because we're not looking for user IDs, timestamps, etc, so this will give us some cleaner results.
 
@@ -254,7 +263,7 @@ This took 696 ms to return the 10 most common paths from the homepage.
 
 Notice that the most common route is to click, from left to right, on each of the titles listed along the top of the Snowplow website. Notice also that the second most common path is just repeatedly refreshing the home page. We could modify the search to exclude these using a WHERE clause as we did in the last example.
 
-## What are the most common journeys that end on a particular page?
+<h2 id="what-are-the-most-common-journeys-that-end-on-a-particular-page">4. What are the most common journeys that end on a particular page?</h2>
 
 This time we'll look at paths that lead to the 'About' page. The only changes we need to make from our previous example is to change the target page and reverse the *prev* edges. But just to keep things varied, let's exclude paths that include the 'About' page before the end.
 
@@ -294,7 +303,7 @@ This takes only 443 ms to give these results (which are backwards - the first pa
 +------------------------------------------------------------+
 </pre>
 
-## How long does it take users to get from one page to another?
+<h2 id="how-long-does-it-take-users-to-get-from-one-page-to-another">5. How long does it take users to get from one page to another?</h2>
 
 In order to understand how users are using a website, we may want to measure how long it took them to get from a specified page to another specified page, measured in terms of the number of intermediate pages. We can do that in Neo4J by first matching the pages we're interested in as well as the pattern joining them. 
 
@@ -338,7 +347,7 @@ Again we can visualise some of these journeys in the browser console. Neo4J lets
 
 <p style="text-align:center"><a href="/assets/img/blog/2014/07/Neo4j-paths-between-home-and-blog.png"><img src="/assets/img/blog/2014/07/Neo4j-paths-between-home-and-blog.png"></a></p>
 
-## Common triplets
+<h2 id="common-triplets">6. Common triplets</h2>
 
 So far, we've been specifying pages to start or end at. But we can equally ask Neo4J to find us common journeys of a given length from anywhere and to anywhere on the website. This time, we want to check that we don't repeat any pages. Since we're only looking for journeys of three pages, we can just check that the start and end pages aren't repeated in the path. 
 
