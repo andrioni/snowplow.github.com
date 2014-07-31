@@ -141,8 +141,8 @@ You'll notice that lots of the journeys started on same page they finished on. T
 <pre>
 MATCH path = (about:Page {id:"snowplowanalytics.com/about/index.html"})<-[:OBJECT]-(c_view)<-[:PREV*2]-(prev2)-[:OBJECT]->(p:Page) 
 WHERE none(
-	v in NODES(path)[2..LENGTH(path)-1]
-	where v.page = about.id
+	v IN NODES(path)[2..LENGTH(path)-1]
+	WHERE v.page = about.id
 )
 RETURN p.id, count(p)
 ORDER BY count(p) DESC
@@ -173,8 +173,8 @@ The <tt>[:PREV*2]</tt> means we can easily amend the query to find the page user
 <pre>
 MATCH path=(about:Page {id:"snowplowanalytics.com/about/index.html"})<-[:OBJECT]-(c_view)<-[:PREV*5]-(prev2)-[:OBJECT]->(p:Page) 
 WHERE none(
-	v in NODES(path)[2..LENGTH(path)-1]
-	where v.page = about.id
+	v IN NODES(path)[2..LENGTH(path)-1]
+	WHERE v.page = about.id
 )
 RETURN p.id, count(p)
 ORDER BY count(p) DESC
@@ -206,7 +206,7 @@ Again, we can visualise a couple of these paths in the browser console:
 
 <p style="text-align:center"><img src="/assets/img/blog/2014/07/Neo4j-5-step-path.png"></p>
 
-
+It's worth considering at this point how long it would take to perform an equivalent search in SQL. For each session by each user, we'd have to find all of the page view events, sort them, find the times they've visited the 'About' page, and then count five steps back, checking that the intervening pages don't include the 'About' page.
 
 
 
@@ -245,8 +245,7 @@ This took 696 ms to return the 10 most common paths from the homepage. I've remo
 +----------------------------------------------------------------------------------------------------------------------------+
 </pre>
 
-Notice that the most common route is to click, in turn, on the top-level pages listed along the top of each page. Notice also that the second most common path is just repeatedly refreshing the home page. We could modify the search to exclude these using a WHERE clause as we did in the last example.
-
+Notice that the most common route is to click, from left to right, on each of the titles listed along the top of the Snowplow website. Notice also that the second most common path is just repeatedly refreshing the home page. We could modify the search to exclude these using a WHERE clause as we did in the last example.
 
 
 
@@ -269,8 +268,8 @@ This time we'll look at paths that lead to the 'About' page. The only changes we
 <pre>
 MATCH path = (about:Page {id: "snowplowanalytics.com/about/index.html"})<-[:OBJECT]-(home_view)-[:PREV*3]->(:View)
 WHERE none(
-	v in NODES(path)[2..LENGTH(path)+1]
-	where v.page = about.id
+	v IN NODES(path)[2..LENGTH(path)+1]
+	WHERE v.page = about.id
 )
 RETURN EXTRACT(v in NODES(path)[2..LENGTH(path)+1] | v.page), count(path)
 ORDER BY count(path) DESC
@@ -297,3 +296,51 @@ This takes only 443 ms to give these results (which are backwards - the first pa
 
 
 
+
+
+
+
+
+
+## How long does it take users to get from one page to another?
+
+In order to understand how users are using a website, we may want to measure how long it took them to get from a specified page to another specified page, measured in terms of the number of intermediate pages. We can do that in Neo4J by first matching the pages we're interested in as well as the pattern joining them. 
+
+Then we want to exclude journeys that have either the start or end page as intermediate steps. There are two good reasons for doing this. Consider a user who arrives at the home page, reads some of the pages in the 'Services' section of the site, and then returns to the home page and goes directly to the blog. According to our matching rules, this user would be counted twice: once from his first visit to the home page, and again for his second visit. And it seems reasonable to rule out the longer journey: after all, it seems that they weren't looking for the blog when they first arrived at the home page.
+
+
+<pre>
+MATCH (blog:Page {id:"snowplowanalytics.com/blog/index.html"}),
+(home:Page {id:"snowplowanalytics.com/"}),
+p = (home)<-[:OBJECT]-()<-[:PREV*..10]-()-[:OBJECT]->(blog)
+WHERE NONE(
+	v IN NODES(p)[2..LENGTH(p)-1]
+	WHERE v.page = blog.id
+	OR v.page = home.id
+)
+RETURN length(p), count(length(p))
+ORDER BY length(p)
+</pre>
+
+This takes around 9 seconds to return this table. Note that the lengths measure the number of *edges* in the path. We don't want to include the two *object* edges, so we should subtract 2 to find the number of 'clicks' between the home page and blog index, or 3 to find the number of intermediate pages.
+
++------------------------------+
+| length(p) | count(length(p)) |
++------------------------------+
+| 3         | 482              |
+| 4         | 183              |
+| 5         | 120              |
+| 6         | 124              |
+| 7         | 233              |
+| 8         | 74               |
+| 9         | 49               |
+| 10        | 46               |
+| 11        | 25               |
+| 12        | 22               |
++------------------------------+
+
+The bump at length = 7 (five clicks) is probably due to the site architecture: 'Blog' is the fifth link along the top of the website.
+
+Again we can visualise some of these journeys in the browser console. Neo4J lets us click on the view nodes to see the page they're associated with.
+
+<p style="text-align:center"><a href="/assets/img/blog/2014/07/Neo4j-paths-between-home-and-blog.png"><img src="/assets/img/blog/2014/07/Neo4j-paths-between-home-and-blog.png"></a></p>
